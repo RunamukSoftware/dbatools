@@ -1,4 +1,4 @@
-﻿$CommandName = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
+$CommandName = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
 Write-Host -Object "Running $PSCommandpath" -ForegroundColor Cyan
 . "$PSScriptRoot\constants.ps1"
 
@@ -34,7 +34,7 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
         It "Should get a specific job" {
             $results.name | Should Be "dbatoolsci_testjob"
         }
-        
+
     }
     Context "Command gets no disabled jobs" {
         BeforeAll {

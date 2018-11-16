@@ -1,4 +1,4 @@
-﻿function Register-DbaTeppArgumentCompleter {
+function Register-DbaTeppArgumentCompleter {
     <#
         .SYNOPSIS
             Registers a parameter for a prestored Tepp.
@@ -27,7 +27,7 @@
             Register-DbaTeppArgumentCompleter -Command Get-DbaBackupHistory -Parameter Database
 
             Registers the "Database" parameter of the Get-DbaBackupHistory to receive Database-Tepp
-    #>
+       #>
     [CmdletBinding()]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingEmptyCatchBlock", "")]
     param (
@@ -65,8 +65,7 @@
 
         if ($null -eq $lowername) {
             $lowername = $p.ToLower()
-        }
-        else {
+        } else {
             $lowername = $lowername.ToLower()
         }
 
@@ -79,8 +78,7 @@
 
         if ($script:TEPP) {
             TabExpansionPlusPlus\Register-ArgumentCompleter -CommandName $Command -ParameterName $p -ScriptBlock $scriptBlock
-        }
-        else {
+        } else {
             Register-ArgumentCompleter -CommandName $Command -ParameterName $p -ScriptBlock $scriptBlock
         }
     }

@@ -1,4 +1,4 @@
-﻿function Write-HostColor {
+function Write-HostColor {
     <#
     .SYNOPSIS
         Function that recognizes html-style tags to insert color into printed text.
@@ -18,7 +18,7 @@
         The message to write to host.
 
     .PARAMETER DefaultColor
-        Default: (Get-DbaConfigValue -Name "message.infocolor")
+        Default: (Get-DbatoolsConfigValue -Name "message.infocolor")
         The color to write stuff to host in when no (or bad) color-code was specified.
 
     .EXAMPLE
@@ -49,16 +49,16 @@
         Write-HostColor -String $stringLong
 
         Will print a long multiline text in its entirety while still respecting the colorcodes
-#>
+    #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingWriteHost", "")]
     [CmdletBinding()]
-    Param (
-        [Parameter(ValueFromPipeline = $true)]
+    param (
+        [Parameter(ValueFromPipeline)]
         [string[]]
         $String,
 
         [ConsoleColor]
-        $DefaultColor = (Get-DbaConfigValue -Name "message.infocolor")
+        $DefaultColor = (Get-DbatoolsConfigValue -Name "message.infocolor")
     )
     process {
         foreach ($line in $String) {
@@ -77,8 +77,7 @@
 
                             $index = $match[$count].Index + $match[$count].Length
                             $count++
-                        }
-                        else {
+                        } else {
                             Write-Host -Object $row.SubString($index) -ForegroundColor $DefaultColor
                             $count++
                         }

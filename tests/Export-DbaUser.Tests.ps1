@@ -1,8 +1,22 @@
-﻿$CommandName = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
-Write-Host -Object "Running $PSCommandpath" -ForegroundColor Cyan
+$CommandName = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
+Write-Host -Object "Running $PSCommandPath" -ForegroundColor Cyan
 . "$PSScriptRoot\constants.ps1"
-
 $outputFile = "$env:temp\dbatoolsci_user.sql"
+
+Describe "$CommandName Unit Tests" -Tag 'UnitTests' {
+    Context "Validate parameters" {
+        $paramCount = 12
+        $defaultParamCount = 11
+        [object[]]$params = (Get-ChildItem function:\Export-DbaUser).Parameters.Keys
+        $knownParameters = 'SqlInstance', 'SqlCredential', 'Database', 'ExcludeDatabase', 'User', 'DestinationVersion', 'Path', 'NoClobber', 'Append', 'EnableException', 'ScriptingOptionsObject', 'ExcludeGoBatchSeparator'
+        It "Should contain our specific parameters" {
+            ( (Compare-Object -ReferenceObject $knownParameters -DifferenceObject $params -IncludeEqual | Where-Object SideIndicator -eq "==").Count ) | Should Be $paramCount
+        }
+        It "Should only contain $paramCount parameters" {
+            $params.Count - $defaultParamCount | Should Be $paramCount
+        }
+    }
+}
 
 Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
     BeforeAll {
@@ -18,8 +32,7 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
 
             $db = Get-DbaDatabase -SqlInstance $script:instance1 -Database $dbname
             $null = $db.Query("CREATE USER [$user] FOR LOGIN [$login]")
-        }
-        catch { } # No idea why appveyor can't handle this
+        } catch { } # No idea why appveyor can't handle this
     }
     AfterAll {
         Remove-DbaDatabase -SqlInstance $script:instance1 -Database $dbname -Confirm:$false
@@ -28,7 +41,7 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
     }
 
     Context "Check if output file was created" {
-        if (Get-DbaDatabaseUser -SqlInstance $script:instance1 -Database $dbname | Where-Object Name -eq $user) {
+        if (Get-DbaDbUser -SqlInstance $script:instance1 -Database $dbname | Where-Object Name -eq $user) {
             $results = Export-DbaUser -SqlInstance $script:instance1 -Database $dbname -User $user -FilePath $outputFile
             It "Exports results to one sql file" {
                 (Get-ChildItem $outputFile).Count | Should Be 1

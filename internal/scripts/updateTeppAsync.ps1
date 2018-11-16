@@ -1,4 +1,4 @@
-﻿$scriptBlock = {
+$scriptBlock = {
     $script:___ScriptName = 'dbatools-teppasynccache'
 
     #region Utility Functions
@@ -12,15 +12,15 @@
 
     function Update-TeppCache {
         [CmdletBinding()]
-        Param (
-            [Parameter(ValueFromPipeline = $true)]
+        param (
+            [Parameter(ValueFromPipeline)]
             $ServerAccess
         )
 
         begin {
 
         }
-        Process {
+        process {
             if ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::TeppUdaterStopper) { break }
 
             foreach ($instance in $ServerAccess) {
@@ -28,8 +28,7 @@
                 $server = New-Object Microsoft.SqlServer.Management.Smo.Server($instance.ConnectionObject)
                 try {
                     $server.ConnectionContext.Connect()
-                }
-                catch {
+                } catch {
                     continue
                 }
 
@@ -71,8 +70,7 @@
             Start-Sleep -Seconds 5
         }
         #endregion Main Execution
-    }
-    catch { }
+    } catch { }
     finally {
         [Sqlcollaborative.Dbatools.Runspace.RunspaceHost]::Runspaces[$___ScriptName.ToLower()].SignalStopped()
     }

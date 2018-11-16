@@ -1,4 +1,4 @@
-﻿#ValidationTags#Messaging,FlowControl,Pipeline,CodeStyle#
+#ValidationTags#Messaging,FlowControl,Pipeline,CodeStyle#
 
 function Test-FunctionInterrupt {
     <#
@@ -20,7 +20,7 @@ function Test-FunctionInterrupt {
             if (Test-FunctionInterrupt) { return }
 
             The calling function will stop if this function returns true.
-    #>
+       #>
     [CmdletBinding()]
     param (
 

@@ -1,4 +1,4 @@
-﻿function Register-DbaTeppInstanceCacheBuilder {
+function Register-DbaTeppInstanceCacheBuilder {
     <#
         .SYNOPSIS
             Registers a scriptblock used to build the TEPP cache from an instance connection.
@@ -32,10 +32,10 @@
 
         .NOTES
             Additional information about the function.
-    #>
+       #>
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory)]
         [System.Management.Automation.ScriptBlock]
         $ScriptBlock,
 
@@ -45,8 +45,7 @@
 
     if ($Slow -and ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::TeppGatherScriptsSlow -notcontains $ScriptBlock)) {
         [Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::TeppGatherScriptsSlow.Add($ScriptBlock)
-    }
-    elseif ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::TeppGatherScriptsFast -notcontains $ScriptBlock) {
+    } elseif ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::TeppGatherScriptsFast -notcontains $ScriptBlock) {
         [Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::TeppGatherScriptsFast.Add($ScriptBlock)
     }
 }

@@ -1,23 +1,38 @@
-$commandname = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
-Write-Host -Object "Running $PSCommandpath" -ForegroundColor Cyan
+$CommandName = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
+Write-Host -Object "Running $PSCommandPath" -ForegroundColor Cyan
 . "$PSScriptRoot\constants.ps1"
 
-Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
+Describe "$CommandName Unit Tests" -Tag 'UnitTests' {
+    Context "Validate parameters" {
+        $paramCount = 7
+        $defaultParamCount = 11
+        [object[]]$params = (Get-ChildItem function:\Test-DbaIdentityUsage).Parameters.Keys
+        $knownParameters = 'SqlInstance', 'SqlCredential', 'Database', 'ExcludeDatabase', 'Threshold', 'ExcludeSystemDb', 'EnableException'
+        It "Should contain our specific parameters" {
+            ( (Compare-Object -ReferenceObject $knownParameters -DifferenceObject $params -IncludeEqual | Where-Object SideIndicator -eq "==").Count ) | Should Be $paramCount
+        }
+        It "Should only contain $paramCount parameters" {
+            $params.Count - $defaultParamCount | Should Be $paramCount
+        }
+    }
+}
+
+Describe "$CommandName Integration Tests" -Tags "IntegrationTests" {
     Context "Verify Test Identity Usage on TinyInt" {
         BeforeAll {
             $table = "TestTable_$(Get-random)"
             $tableDDL = "CREATE TABLE $table (testId TINYINT IDENTITY(1,1),testData DATETIME2 DEFAULT getdate() )"
-            Invoke-Sqlcmd2 -ServerInstance $script:instance1 -Query $tableDDL -database TempDb
+            Invoke-DbaQuery -SqlInstance $script:instance1 -Query $tableDDL -database TempDb
 
         }
         AfterAll {
             $cleanup = "Drop table $table"
-            Invoke-Sqlcmd2 -ServerInstance $script:instance1 -Query $cleanup -database TempDb
+            Invoke-DbaQuery -SqlInstance $script:instance1 -Query $cleanup -database TempDb
         }
 
         $insertSql = "INSERT INTO $table (testData) DEFAULT VALUES"
         for ($i = 1; $i -le 128; $i++) {
-            Invoke-Sqlcmd2 -ServerInstance $script:instance1 -Query $insertSql -database TempDb
+            Invoke-DbaQuery -SqlInstance $script:instance1 -Query $insertSql -database TempDb
         }
         $results = Test-DbaIdentityUsage -SqlInstance $script:instance1 -Database TempDb | Where-Object {$_.Table -eq $table}
 
@@ -30,7 +45,7 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
 
         $insertSql = "INSERT INTO $table (testData) DEFAULT VALUES"
         for ($i = 1; $i -le 127; $i++) {
-            Invoke-Sqlcmd2 -ServerInstance $script:instance1 -Query $insertSql -database TempDb
+            Invoke-DbaQuery -SqlInstance $script:instance1 -Query $insertSql -database TempDb
         }
         $results = Test-DbaIdentityUsage -SqlInstance $script:instance1 -Database TempDb | Where-Object {$_.Table -eq $table}
 
@@ -47,17 +62,17 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
         BeforeAll {
             $table = "TestTable_$(Get-random)"
             $tableDDL = "CREATE TABLE $table (testId tinyint IDENTITY(0,5),testData DATETIME2 DEFAULT getdate() )"
-            Invoke-Sqlcmd2 -ServerInstance $script:instance1 -Query $tableDDL -database TempDb
+            Invoke-DbaQuery -SqlInstance $script:instance1 -Query $tableDDL -database TempDb
 
         }
         AfterAll {
             $cleanup = "Drop table $table"
-            Invoke-Sqlcmd2 -ServerInstance $script:instance1 -Query $cleanup -database TempDb
+            Invoke-DbaQuery -SqlInstance $script:instance1 -Query $cleanup -database TempDb
         }
 
         $insertSql = "INSERT INTO $table (testData) DEFAULT VALUES"
         for ($i = 1; $i -le 25; $i++) {
-            Invoke-Sqlcmd2 -ServerInstance $script:instance1 -Query $insertSql -database TempDb
+            Invoke-DbaQuery -SqlInstance $script:instance1 -Query $insertSql -database TempDb
         }
         $results = Test-DbaIdentityUsage -SqlInstance $script:instance1 -Database TempDb | Where-Object {$_.Table -eq $table}
 
@@ -67,6 +82,5 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
         It "TinyInt identity column with 25 rows using increment of 5 should be 47.06% full" {
             $results.PercentUsed | Should Be 47.06
         }
-
     }
 }

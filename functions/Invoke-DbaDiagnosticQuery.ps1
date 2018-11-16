@@ -1,136 +1,138 @@
 function Invoke-DbaDiagnosticQuery {
     <#
     .SYNOPSIS
-    Invoke-DbaDiagnosticQuery runs the scripts provided by Glenn Berry's DMV scripts on specified servers
+        Invoke-DbaDiagnosticQuery runs the scripts provided by Glenn Berry's DMV scripts on specified servers
 
     .DESCRIPTION
-    This is the main function of the Sql Server Diagnostic Queries related functions in dbatools.
-    The diagnostic queries are developed and maintained by Glenn Berry and they can be found here along with a lot of documentation:
-    http://www.sqlskills.com/blogs/glenn/category/dmv-queries/
+        This is the main function of the Sql Server Diagnostic Queries related functions in dbatools.
+        The diagnostic queries are developed and maintained by Glenn Berry and they can be found here along with a lot of documentation:
+        http://www.sqlskills.com/blogs/glenn/category/dmv-queries/
 
-    The most recent version of the diagnostic queries are included in the dbatools module.
-    But it is possible to download a newer set or a specific version to an alternative location and parse and run those scripts.
-    It will run all or a selection of those scripts on one or multiple servers and return the result as a PowerShell Object
+        The most recent version of the diagnostic queries are included in the dbatools module.
+        But it is possible to download a newer set or a specific version to an alternative location and parse and run those scripts.
+        It will run all or a selection of those scripts on one or multiple servers and return the result as a PowerShell Object
 
     .PARAMETER SqlInstance
-    The target SQL Server. Can be either a string or SMO server
+        The target SQL Server instance or instances. Can be either a string or SMO server
 
     .PARAMETER SqlCredential
-    Allows alternative Windows or SQL login credentials to be used
+        Allows alternative Windows or SQL login credentials to be used
 
     .PARAMETER Path
-    Alternate path for the diagnostic scripts
+        Alternate path for the diagnostic scripts
 
     .PARAMETER Database
-    The database(s) to process. If unspecified, all databases will be processed
+        The database(s) to process. If unspecified, all databases will be processed
 
     .PARAMETER ExcludeDatabase
-    The database(s) to exclude
+        The database(s) to exclude
+
+    .PARAMETER ExcludeQuery
+        The Queries to exclude
 
     .PARAMETER UseSelectionHelper
-    Provides a gridview with all the queries to choose from and will run the selection made by the user on the Sql Server instance specified.
+        Provides a gridview with all the queries to choose from and will run the selection made by the user on the Sql Server instance specified.
 
     .PARAMETER QueryName
-    Only run specific query
+        Only run specific query
 
     .PARAMETER InstanceOnly
-    Run only instance level queries
+        Run only instance level queries
 
     .PARAMETER DatabaseSpecific
-    Run only database level queries
+        Run only database level queries
 
     .PARAMETER NoQueryTextColumn
-    Use this switch to exclude the [Complete Query Text] column from relevant queries
+        Use this switch to exclude the [Complete Query Text] column from relevant queries
 
     .PARAMETER NoPlanColumn
-    Use this switch to exclude the [Query Plan] column from relevant queries
+        Use this switch to exclude the [Query Plan] column from relevant queries
 
     .PARAMETER NoColumnParsing
-    Does not parse the [Complete Query Text] and [Query Plan] columns and disregards the NoQueryTextColumn and NoColumnParsing switches
+        Does not parse the [Complete Query Text] and [Query Plan] columns and disregards the NoQueryTextColumn and NoColumnParsing switches
 
     .PARAMETER EnableException
-    By default, when something goes wrong we try to catch it, interpret it and give you a friendly warning message.
-    This avoids overwhelming you with "sea of red" exceptions, but is inconvenient because it basically disables advanced scripting.
-    Using this switch turns this "nice by default" feature off and enables you to catch exceptions with your own try/catch.
+        By default, when something goes wrong we try to catch it, interpret it and give you a friendly warning message.
+        This avoids overwhelming you with "sea of red" exceptions, but is inconvenient because it basically disables advanced scripting.
+        Using this switch turns this "nice by default" feature off and enables you to catch exceptions with your own try/catch.
 
     .PARAMETER Confirm
-    Prompts to confirm certain actions
+        Prompts to confirm certain actions
 
     .PARAMETER WhatIf
-    Shows what would happen if the command would execute, but does not actually perform the command
+        Shows what would happen if the command would execute, but does not actually perform the command
 
     .PARAMETER OutputPath
-    Directory to parsed diagnostict queries to. This will split them based on server, databasename, and query.
+        Directory to parsed diagnostict queries to. This will split them based on server, databasename, and query.
 
     .PARAMETER ExportQueries
-    Use this switch to export the diagnostic queries to sql files. I
-    nstead of running the queries, the server will be evaluated to find the appropriate queries to run based on SQL Version.
-    These sql files will then be created in the OutputDirectory.
-
-
+        Use this switch to export the diagnostic queries to sql files. I
+        nstead of running the queries, the server will be evaluated to find the appropriate queries to run based on SQL Version.
+        These sql files will then be created in the OutputDirectory
 
     .NOTES
-    Tags: Database, DMV
-    Author: André Kamman (@AndreKamman), http://clouddba.io
-    Website: https://dbatools.io
-    Copyright: (C) Chrissy LeMaire, clemaire@gmail.com
-    License: MIT https://opensource.org/licenses/MIT
+        Tags: Database, DMV
+        Author: Andre Kamman (@AndreKamman), http://clouddba.io
+
+        Website: https://dbatools.io
+        Copyright: (c) 2018 by dbatools, licensed under MIT
+        License: MIT https://opensource.org/licenses/MIT
 
     .LINK
-    https://dbatools.io/Invoke-DbaDiagnosticQuery
+        https://dbatools.io/Invoke-DbaDiagnosticQuery
 
     .EXAMPLE
-    Invoke-DbaDiagnosticQuery -SqlInstance sql2016
+        PS C:\>Invoke-DbaDiagnosticQuery -SqlInstance sql2016
 
-    Run the selection made by the user on the Sql Server instance specified.
+        Run the selection made by the user on the Sql Server instance specified.
 
     .EXAMPLE
-    Invoke-DbaDiagnosticQuery -SqlInstance sql2016 -UseSelectionHelper | Export-DbaDiagnosticQuery -Path C:\temp\gboutput
+        PS C:\>Invoke-DbaDiagnosticQuery -SqlInstance sql2016 -UseSelectionHelper | Export-DbaDiagnosticQuery -Path C:\temp\gboutput
 
-    Provides a gridview with all the queries to choose from and will run the selection made by the user on the SQL Server instance specified.
-    Then it will export the results to Export-DbaDiagnosticQuery.
+        Provides a gridview with all the queries to choose from and will run the selection made by the user on the SQL Server instance specified.
+        Then it will export the results to Export-DbaDiagnosticQuery.
 
-    .Example
-    # Exporting Queries To SQL Files
-    - Parse the appropriate diagnostic queries by connecting to server to get version matched queries
-    - Instead of running the diagnostic queries, export them to SQL files
+    .EXAMPLE
+        PS C:\> Invoke-DbaDiagnosticQuery -sqlinstance localhost -ExportQueries -outputpath "C:\temp\DiagnosticQueries"
 
-    # Export All Queries to Disk
-    Invoke-DbaDiagnosticQuery -sqlinstance localhost -ExportQueries -outputpath "C:\temp\DiagnosticQueries"
+        Export All Queries to Disk
 
-    # Export Database Specific Queries for all User Dbs
-    Invoke-DbaDiagnosticQuery -sqlinstance localhost -DatabaseSpecific -DatabaseName 'tempdb' -ExportQueries -outputpath "C:\temp\DiagnosticQueries"
+    .EXAMPLE
+        PS C:\> Invoke-DbaDiagnosticQuery -sqlinstance localhost -DatabaseSpecific -DatabaseName 'tempdb' -ExportQueries -outputpath "C:\temp\DiagnosticQueries"
 
-    # Export Database Specific Queries For One Target Database
-    Invoke-DbaDiagnosticQuery -sqlinstance localhost -DatabaseSpecific -DatabaseName 'tempdb' -ExportQueries -outputpath "C:\temp\DiagnosticQueries"
+        Export Database Specific Queries for all User Dbs
 
-    # Export Database Specific Queries For One Target Database and One Specific Query
-    Invoke-DbaDiagnosticQuery -sqlinstance localhost -DatabaseSpecific -DatabaseName 'tempdb' -ExportQueries -outputpath "C:\temp\DiagnosticQueries" -queryname 'Database-scoped Configurations'
+    .EXAMPLE
+        PS C:\> Invoke-DbaDiagnosticQuery -sqlinstance localhost -DatabaseSpecific -DatabaseName 'tempdb' -ExportQueries -outputpath "C:\temp\DiagnosticQueries"
 
-    # Choose Queries To Export
-    Invoke-DbaDiagnosticQuery -sqlinstance localhost -UseSelectionHelper
+        Export Database Specific Queries For One Target Database
 
-    This will export with SqlInstance, DatabaseName, and QueryName as appropriate based on query.
+    .EXAMPLE
+        PS C:\> Invoke-DbaDiagnosticQuery -sqlinstance localhost -DatabaseSpecific -DatabaseName 'tempdb' -ExportQueries -outputpath "C:\temp\DiagnosticQueries" -queryname 'Database-scoped Configurations'
 
-    .Example
-    # Export Queries (not run) as returned object
+        Export Database Specific Queries For One Target Database and One Specific Query
 
-    [System.Management.Automation.PSObject[]]$results = Invoke-DbaDiagnosticQuery -SqlInstance localhost -whatif
+    .EXAMPLE
+        PS C:\> Invoke-DbaDiagnosticQuery -sqlinstance localhost -UseSelectionHelper
 
-    Parse the appropriate diagnostic queries by connecting to server, and instead of running them, return as [pscustomobject[]] to work with further
+        Choose Queries To Export
 
-    .Example
-    # Database Specific Handling
-    $results = Invoke-DbaDiagnosticQuery -SqlInstance $script:instance2 -DatabaseSpecific -queryname 'Database-scoped Configurations' -databasename $database
+    .EXAMPLE
+        PS C:\> [PSObject[]]$results = Invoke-DbaDiagnosticQuery -SqlInstance localhost -whatif
 
-    Run diagnostic queries targeted at specific database, and only run database level queries against this database.
+        Parse the appropriate diagnostic queries by connecting to server, and instead of running them, return as [PSCustomObject[]] to work with further
+
+    .EXAMPLE
+        PS C:\> $results = Invoke-DbaDiagnosticQuery -SqlInstance Sql2017 -DatabaseSpecific -queryname 'Database-scoped Configurations' -databasename TestStuff
+
+        Run diagnostic queries targeted at specific database, and only run database level queries against this database.
 
     #>
 
     [CmdletBinding(SupportsShouldProcess)]
     [outputtype([pscustomobject[]])]
     param (
-        [parameter(Mandatory = $true, ValueFromPipeline = $true, Position = 0)]
+        [parameter(Mandatory, ValueFromPipeline, Position = 0)]
         [Alias("ServerInstance", "SqlServer")]
         [DbaInstanceParameter[]]$SqlInstance,
 
@@ -138,6 +140,8 @@ function Invoke-DbaDiagnosticQuery {
         [object[]]$Database,
 
         [object[]]$ExcludeDatabase,
+
+        [object[]]$ExcludeQuery,
 
         [Alias('Credential')]
         [PSCredential]$SqlCredential,
@@ -162,8 +166,8 @@ function Invoke-DbaDiagnosticQuery {
 
         function Invoke-DiagnosticQuerySelectionHelper {
             [CmdletBinding()]
-            Param (
-                [parameter(Mandatory = $true)]
+            param (
+                [parameter(Mandatory)]
                 $ParsedScript
             )
 
@@ -222,10 +226,8 @@ function Invoke-DbaDiagnosticQuery {
         foreach ($instance in $SqlInstance) {
             $counter = 0
             try {
-                Write-Message -Level Verbose -Message "Connecting to $instance"
                 $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $sqlcredential
-            }
-            catch {
+            } catch {
                 Stop-Function -Message "Failure" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
             }
 
@@ -233,8 +235,7 @@ function Invoke-DbaDiagnosticQuery {
 
             if ($server.VersionMinor -eq 50) {
                 $version = "2008R2"
-            }
-            else {
+            } else {
                 $version = switch ($server.VersionMajor) {
                     9 { "2005" }
                     10 { "2008" }
@@ -245,11 +246,18 @@ function Invoke-DbaDiagnosticQuery {
                 }
             }
 
+            if ($version -eq "2016" -and $server.VersionMinor -gt 5026 ) {
+                $version = "2016SP2"
+            }
+
+            if ($server.DatabaseEngineType -eq "SqlAzureDatabase") {
+                $version = "AzureSQLDatabase"
+            }
+
             if (!$instanceOnly) {
                 if (-not $Database) {
                     $databases = (Get-DbaDatabase -SqlInstance $server -ExcludeAllSystemDb -ExcludeDatabase $ExcludeDatabase).Name
-                }
-                else {
+                } else {
                     $databases = (Get-DbaDatabase -SqlInstance $server -ExcludeAllSystemDb -Database $Database -ExcludeDatabase $ExcludeDatabase).Name
                 }
             }
@@ -260,17 +268,28 @@ function Invoke-DbaDiagnosticQuery {
             if ($UseSelectionHelper -and $first) {
                 $QueryName = Invoke-DiagnosticQuerySelectionHelper $parsedscript
                 $first = $false
+                if ($QueryName.Count -eq 0) {
+                    Write-Message -Level Output -Message "No query selected through SelectionHelper, halting script execution"
+                    return
+                }
             }
+
+            if ($QueryName.Count -eq 0) {
+                $QueryName = $parsedscript | Select-Object -ExpandProperty QueryName
+            }
+
+            if ($ExcludeQuery) {
+                $QueryName = Compare-Object -ReferenceObject $QueryName -DifferenceObject $ExcludeQuery | Where-Object SideIndicator -eq "<=" | Select-Object -ExpandProperty InputObject
+            }
+
             #since some database level queries can take longer (such as fragmentation) calculate progress with database specific queries * count of databases to run against into context
             $CountOfDatabases = ($databases).Count
-
 
             if ($QueryName.Count -ne 0) {
                 #if running all queries, then calculate total to run by instance queries count + (db specific count * databases to run each against)
                 $countDBSpecific = @($parsedscript | Where-Object {$_.QueryName -in $QueryName -and $_.DBSpecific -eq $true}).Count
                 $countInstanceSpecific = @($parsedscript | Where-Object {$_.QueryName -in $QueryName -and $_.DBSpecific -eq $false}).Count
-            }
-            else {
+            } else {
                 #if narrowing queries to database specific, calculate total to process based on instance queries count + (db specific count * databases to run each against)
                 $countDBSpecific = @($parsedscript | Where-Object DBSpecific).Count
                 $countInstanceSpecific = @($parsedscript | Where-Object DBSpecific -eq $false).Count
@@ -278,21 +297,19 @@ function Invoke-DbaDiagnosticQuery {
             }
             if (!$instanceonly -and !$DatabaseSpecific -and !$QueryName) {
                 $scriptcount = $countInstanceSpecific + ($countDBSpecific * $CountOfDatabases )
-            }
-            elseif ($instanceOnly) {
+            } elseif ($instanceOnly) {
                 $scriptcount = $countInstanceSpecific
-            }
-            elseif ($DatabaseSpecific) {
+            } elseif ($DatabaseSpecific) {
                 $scriptcount = $countDBSpecific * $CountOfDatabases
-            }
-            elseif ($QueryName.Count -ne 0) {
+            } elseif ($QueryName.Count -ne 0) {
                 $scriptcount = $countInstanceSpecific + ($countDBSpecific * $CountOfDatabases )
 
 
             }
-
+            
             foreach ($scriptpart in $parsedscript) {
-
+                # ensure results are null with each part, otherwise duplicated information may be returned
+                $result = $null
                 if (($QueryName.Count -ne 0) -and ($QueryName -notcontains $scriptpart.QueryName)) { continue }
                 if (!$scriptpart.DBSpecific -and !$DatabaseSpecific) {
                     if ($ExportQueries) {
@@ -314,9 +331,9 @@ function Invoke-DbaDiagnosticQuery {
                         try {
                             $result = $server.Query($scriptpart.Text)
                             Write-Message -Level Verbose -Message "Processed $($scriptpart.QueryName) on $instance"
-                            if (!$result) {
+                            if (-not $result) {
                                 [pscustomobject]@{
-                                    ComputerName     = $server.NetName
+                                    ComputerName     = $server.ComputerName
                                     InstanceName     = $server.ServiceName
                                     SqlInstance      = $server.DomainInstanceName
                                     Number           = $scriptpart.QueryNr
@@ -329,13 +346,12 @@ function Invoke-DbaDiagnosticQuery {
                                 }
                                 Write-Message -Level Verbose -Message ("Empty result for Query {0} - {1} - {2}" -f $scriptpart.QueryNr, $scriptpart.QueryName, $scriptpart.Description)
                             }
-                        }
-                        catch {
+                        } catch {
                             Write-Message -Level Verbose -Message ('Some error has occured on Server: {0} - Script: {1}, result unavailable' -f $instance, $scriptpart.QueryName) -Target $instance -ErrorRecord $_
                         }
                         if ($result) {
                             [pscustomobject]@{
-                                ComputerName     = $server.NetName
+                                ComputerName     = $server.ComputerName
                                 InstanceName     = $server.ServiceName
                                 SqlInstance      = $server.DomainInstanceName
                                 Number           = $scriptpart.QueryNr
@@ -344,16 +360,17 @@ function Invoke-DbaDiagnosticQuery {
                                 DatabaseSpecific = $scriptpart.DBSpecific
                                 Database         = $null
                                 Notes            = $null
-                                Result           = Select-DefaultView -InputObject $result -Property *
+                                #Result           = Select-DefaultView -InputObject $result -Property *
+                                #Not using Select-DefaultView because excluding the fields below doesn't seem to work
+                                Result           = $result | Select-Object * -ExcludeProperty 'Item', 'RowError', 'RowState', 'Table', 'ItemArray', 'HasErrors'
                             }
 
                         }
-                    }
-                    else {
+                    } else {
                         # if running WhatIf, then return the queries that would be run as an object, not just whatif output
 
                         [pscustomobject]@{
-                            ComputerName     = $server.NetName
+                            ComputerName     = $server.ComputerName
                             InstanceName     = $server.ServiceName
                             SqlInstance      = $server.DomainInstanceName
                             Number           = $scriptpart.QueryNr
@@ -366,8 +383,7 @@ function Invoke-DbaDiagnosticQuery {
                         }
                     }
 
-                }
-                elseif ($scriptpart.DBSpecific -and !$instanceOnly) {
+                } elseif ($scriptpart.DBSpecific -and !$instanceOnly) {
 
                     foreach ($currentdb in $databases) {
                         if ($ExportQueries) {
@@ -390,44 +406,46 @@ function Invoke-DbaDiagnosticQuery {
                             Write-Message -Level Verbose -Message "Collecting diagnostic query data from $($currentDb) for $($scriptpart.QueryName) on $instance"
                             try {
                                 $result = $server.Query($scriptpart.Text, $currentDb)
-                                if (!$result) {
+                                if (-not $result) {
                                     [pscustomobject]@{
-                                        ComputerName     = $server.NetName
+                                        ComputerName     = $server.ComputerName
                                         InstanceName     = $server.ServiceName
                                         SqlInstance      = $server.DomainInstanceName
                                         Number           = $scriptpart.QueryNr
                                         Name             = $scriptpart.QueryName
                                         Description      = $scriptpart.Description
                                         DatabaseSpecific = $scriptpart.DBSpecific
-                                        Database         = $null
+                                        Database         = $currentdb
                                         Notes            = "Empty Result for this Query"
                                         Result           = $null
                                     }
                                     Write-Message -Level Verbose -Message ("Empty result for Query {0} - {1} - {2}" -f $scriptpart.QueryNr, $scriptpart.QueryName, $scriptpart.Description) -Target $scriptpart -ErrorRecord $_
                                 }
-                            }
-                            catch {
+                            } catch {
                                 Write-Message -Level Verbose -Message ('Some error has occured on Server: {0} - Script: {1} - Database: {2}, result will not be saved' -f $instance, $scriptpart.QueryName, $currentDb) -Target $currentdb -ErrorRecord $_
                             }
 
-                            [pscustomobject]@{
-                                ComputerName     = $server.NetName
-                                InstanceName     = $server.ServiceName
-                                SqlInstance      = $server.DomainInstanceName
-                                Number           = $scriptpart.QueryNr
-                                Name             = $scriptpart.QueryName
-                                Description      = $scriptpart.Description
-                                DatabaseSpecific = $scriptpart.DBSpecific
-                                Database         = $currentDb
-                                Notes            = $null
-                                Result           = Select-DefaultView -InputObject $result -Property *
+                            if ($result) {
+                                [pscustomobject]@{
+                                    ComputerName     = $server.ComputerName
+                                    InstanceName     = $server.ServiceName
+                                    SqlInstance      = $server.DomainInstanceName
+                                    Number           = $scriptpart.QueryNr
+                                    Name             = $scriptpart.QueryName
+                                    Description      = $scriptpart.Description
+                                    DatabaseSpecific = $scriptpart.DBSpecific
+                                    Database         = $currentDb
+                                    Notes            = $null
+                                    #Result           = Select-DefaultView -InputObject $result -Property *
+                                    #Not using Select-DefaultView because excluding the fields below doesn't seem to work
+                                    Result           = $result | Select-Object * -ExcludeProperty 'Item', 'RowError', 'RowState', 'Table', 'ItemArray', 'HasErrors'
+                                }
                             }
-                        }
-                        else {
+                        } else {
                             # if running WhatIf, then return the queries that would be run as an object, not just whatif output
 
                             [pscustomobject]@{
-                                ComputerName     = $server.NetName
+                                ComputerName     = $server.ComputerName
                                 InstanceName     = $server.ServiceName
                                 SqlInstance      = $server.DomainInstanceName
                                 Number           = $scriptpart.QueryNr

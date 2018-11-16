@@ -1,4 +1,4 @@
-﻿function Register-DbaTeppScriptblock {
+function Register-DbaTeppScriptblock {
     <#
         .SYNOPSIS
             Registers a scriptblock under name, to later be available for TabExpansion.
@@ -16,7 +16,7 @@
             Register-DbaTeppScriptblock -ScriptBlock $scriptBlock -Name MyFirstTeppScriptBlock
 
             Stores the scriptblock stored in $scriptBlock under the name "MyFirstTeppScriptBlock"
-    #>
+       #>
     [CmdletBinding()]
     param (
         [System.Management.Automation.ScriptBlock]

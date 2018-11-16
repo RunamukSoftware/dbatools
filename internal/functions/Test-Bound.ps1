@@ -1,4 +1,4 @@
-﻿function Test-Bound {
+function Test-Bound {
     <#
         .SYNOPSIS
             Helperfunction that tests, whether a parameter was bound.
@@ -36,10 +36,10 @@
             Test-Bound -And 'Login', 'Spid', 'ExcludeSpid', 'Host', 'Program', 'Database'
 
             Returns whether any of the specified parameters was not bound
-    #>
+       #>
     [CmdletBinding()]
-    Param (
-        [Parameter(Mandatory = $true, Position = 0)]
+    param (
+        [Parameter(Mandatory, Position = 0)]
         [string[]]
         $ParameterName,
 
@@ -56,16 +56,14 @@
 
     if ($And) {
         $test = $true
-    }
-    else {
+    } else {
         $test = $false
     }
 
     foreach ($name in $ParameterName) {
         if ($And) {
             if (-not $BoundParameters.ContainsKey($name)) { $test = $false }
-        }
-        else {
+        } else {
             if ($BoundParameters.ContainsKey($name)) { $test = $true }
         }
     }

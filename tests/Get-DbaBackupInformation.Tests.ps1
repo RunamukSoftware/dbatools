@@ -1,15 +1,29 @@
 $CommandName = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
-Write-Host -Object "Running $PSCommandpath" -ForegroundColor Cyan
+Write-Host -Object "Running $PSCommandPath" -ForegroundColor Cyan
 . "$PSScriptRoot\constants.ps1"
 
-Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
+Describe "$CommandName Unit Tests" -Tag 'UnitTests' {
+    Context "Validate parameters" {
+        $paramCount = 16
+        $defaultParamCount = 11
+        [object[]]$params = (Get-ChildItem function:\Get-DbaBackupInformation).Parameters.Keys
+        $knownParameters = 'Path', 'SqlInstance', 'SqlCredential', 'DatabaseName', 'SourceInstance', 'NoXpDirTree', 'DirectoryRecurse', 'EnableException', 'MaintenanceSolution', 'IgnoreLogBackup', 'ExportPath', 'AzureCredential', 'Import', 'Anonymise', 'NoClobber', 'PassThru'
+        It "Should contain our specific parameters" {
+            ( (Compare-Object -ReferenceObject $knownParameters -DifferenceObject $params -IncludeEqual | Where-Object SideIndicator -eq "==").Count ) | Should Be $paramCount
+        }
+        It "Should only contain $paramCount parameters" {
+            $params.Count - $defaultParamCount | Should Be $paramCount
+        }
+    }
+}
+
+Describe "$CommandName Integration Tests" -Tags "IntegrationTests" {
 
     BeforeAll {
         $DestBackupDir = 'C:\Temp\GetBackups'
         if (-Not(Test-Path $DestBackupDir)) {
             New-Item -Type Container -Path $DestBackupDir
-        }
-        else {
+        } else {
             Remove-Item $DestBackupDir\*
         }
         $random = Get-Random
@@ -35,8 +49,7 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
             New-Item -Type Container -Path $DestBackupDirOla\FULL
             New-Item -Type Container -Path $DestBackupDirOla\DIFF
             New-Item -Type Container -Path $DestBackupDirOla\LOG
-        }
-        else {
+        } else {
             Remove-Item $DestBackupDirOla\FULL\*
             Remove-Item $DestBackupDirOla\DIFF\*
             Remove-Item $DestBackupDirOla\LOG\*
@@ -128,7 +141,5 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
         It "Should ignore IgnoreLogBackup and return 3 backups" {
             $resultsSanLog.count | Should Be 3
         }
-
     }
-
 }

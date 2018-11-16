@@ -22,14 +22,14 @@ function Start-DbaRunspace {
         PS C:\> Start-DbaRunspace -Name 'mymodule.maintenance'
 
         Starts the runspace registered under the name 'mymodule.maintenance'
-#>
+    #>
     [CmdletBinding()]
     param (
-        [Parameter(ValueFromPipeline = $true)]
+        [Parameter(ValueFromPipeline)]
         [string[]]
         $Name,
 
-        [Parameter(ValueFromPipeline = $true)]
+        [Parameter(ValueFromPipeline)]
         [Sqlcollaborative.Dbatools.Runspace.RunspaceContainer[]]
         $Runspace,
 
@@ -39,19 +39,17 @@ function Start-DbaRunspace {
 
     process {
         foreach ($item in $Name) {
-            # Ignore all output from Get-PSFRunspace - it'll be handled by the second loop
+            # Ignore all output from Get-DbaRunspace - it'll be handled by the second loop
             if ($item -eq "Sqlcollaborative.Dbatools.Runspace.runspacecontainer") { continue }
 
             if ([Sqlcollaborative.Dbatools.Runspace.RunspaceHost]::Runspaces.ContainsKey($item.ToLower())) {
                 try {
                     Write-Message -Level Verbose -Message "Starting runspace: $($item.ToLower())" -Target $item.ToLower()
                     [Sqlcollaborative.Dbatools.Runspace.RunspaceHost]::Runspaces[$item.ToLower()].Start()
-                }
-                catch {
+                } catch {
                     Stop-Function -Message "Failed to start runspace: $($item.ToLower())" -EnableException $EnableException -Target $item.ToLower() -Continue
                 }
-            }
-            else {
+            } else {
                 Stop-Function -Message "Failed to start runspace: $($item.ToLower()) | No runspace registered under this name!" -EnableException $EnableException -Category InvalidArgument -Tag "fail", "argument", "runspace", "start" -Target $item.ToLower() -Continue
             }
         }
@@ -60,8 +58,7 @@ function Start-DbaRunspace {
             try {
                 Write-Message -Level Verbose -Message "Starting runspace: $($item.Name.ToLower())" -Target $item
                 $item.Start()
-            }
-            catch {
+            } catch {
                 Stop-Function -Message "Failed to start runspace: $($item.Name.ToLower())" -EnableException $EnableException -Target $item -Continue
             }
         }

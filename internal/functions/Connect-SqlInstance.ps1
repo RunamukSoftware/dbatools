@@ -1,45 +1,66 @@
 function Connect-SqlInstance {
     <#
-        .SYNOPSIS
-            Internal function to establish smo connections.
+    .SYNOPSIS
+        Internal function to establish smo connections.
 
-        .DESCRIPTION
-            Internal function to establish smo connections.
+    .DESCRIPTION
+        Internal function to establish smo connections.
 
-            Can interpret any of the following types of information:
-            - String
-            - Smo Server objects
-            - Smo Linked Server objects
+        Can interpret any of the following types of information:
+        - String
+        - Smo Server objects
+        - Smo Linked Server objects
 
-        .PARAMETER SqlInstance
-            The SQL Server instance to restore to.
+        Related Docs, Pull Requests and Issues:
 
-        .PARAMETER SqlCredential
-            Allows you to login to servers using SQL Logins as opposed to Windows Auth/Integrated/Trusted.
+    Connect commands and alt Windows Credential fix
+    https://github.com/sqlcollaborative/dbatools/pull/3835
 
-        .PARAMETER ParameterConnection
-            This call is for dynamic parameters only and is no longer used, actually.
+    Connect-*Instance, fix errors with Windows logins
+    https://github.com/sqlcollaborative/dbatools/pull/4426
 
-        .PARAMETER AzureUnsupported
-            Throw if Azure is detected but not supported
+    Invoke-DbaSqlQuery fails to use proper Windows credentials
+    https://github.com/sqlcollaborative/dbatools/issues/3780
 
-        .PARAMETER RegularUser
-            The connection doesn't require SA privileges.
-            By default, the assumption is that SA is no longer required.
+    Fixed auth issue
+    https://github.com/sqlcollaborative/dbatools/pull/3809
 
-        .PARAMETER MinimumVersion
-           The minimum version that the calling command will support
+    Connecting to an Instance of SQL Server
+    https://docs.microsoft.com/en-us/sql/relational-databases/server-management-objects-smo/create-program/connecting-to-an-instance-of-sql-server
 
-        .EXAMPLE
-            Connect-SqlInstance -SqlInstance sql2014
+    SQL Server Connection Pooling (ADO.NET)
+    https://docs.microsoft.com/en-us/dotnet/framework/data/adonet/sql-server-connection-pooling
 
-            Connect to the Server sql2014 with native credentials.
-    #>
+    .PARAMETER SqlInstance
+        The SQL Server instance to restore to.
+
+    .PARAMETER SqlCredential
+        Allows you to login to servers using SQL Logins as opposed to Windows Auth/Integrated/Trusted.
+
+    .PARAMETER ParameterConnection
+        This call is for dynamic parameters only and is no longer used, actually.
+
+    .PARAMETER AzureUnsupported
+        Throw if Azure is detected but not supported
+
+    .PARAMETER RegularUser
+        The connection doesn't require SA privileges.
+        By default, the assumption is that SA is no longer required.
+
+    .PARAMETER MinimumVersion
+       The minimum version that the calling command will support
+
+    .EXAMPLE
+        Connect-SqlInstance -SqlInstance sql2014
+
+        Connect to the Server sql2014 with native credentials.
+       #>
     [CmdletBinding()]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidDefaultValueSwitchParameter", "")]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingEmptyCatchBlock", "")]
     param (
-        [Parameter(Mandatory = $true)][object]$SqlInstance,
+        [Parameter(Mandatory)]
+        [object]$SqlInstance,
         [object]$SqlCredential,
         [switch]$ParameterConnection,
         [switch]$RegularUser = $true,
@@ -52,25 +73,18 @@ function Connect-SqlInstance {
     function Invoke-TEPPCacheUpdate {
         [CmdletBinding()]
         param (
-            [System.Management.Automation.ScriptBlock]
-            $ScriptBlock
+            [System.Management.Automation.ScriptBlock]$ScriptBlock
         )
 
         try {
             [ScriptBlock]::Create($scriptBlock).Invoke()
-        }
-        catch {
+        } catch {
             # If the SQL Server version doesn't support the feature, we ignore it and silently continue
             if ($_.Exception.InnerException.InnerException.GetType().FullName -eq "Microsoft.SqlServer.Management.Sdk.Sfc.InvalidVersionEnumeratorException") {
                 return
             }
 
-            if ($ENV:APPVEYOR_BUILD_FOLDER -or ([Sqlcollaborative.Dbatools.dbaSystem.DebugHost]::DeveloperMode)) { throw }
-            <#
-            elseif ([Sqlcollaborative.Dbatools.dbaSystem.DebugHost]::DevelopmentBranch) {
-                Write-Message -Level Warning -Message "Failed TEPP Caching: $($s | Select-String '"(.*?)"' | ForEach-Object { $_.Matches[0].Groups[1].Value })" -ErrorRecord $_ -EnableException $false
-            }
-            #>
+            if ($ENV:APPVEYOR_BUILD_FOLDER -or ([Sqlcollaborative.Dbatools.Message.MEssageHost]::DeveloperMode)) { throw }
             else {
                 Write-Message -Level Warning -Message "Failed TEPP Caching: $($scriptBlock.ToString() | Select-String '"(.*?)"' | ForEach-Object { $_.Matches[0].Groups[1].Value })" -ErrorRecord $_ 3>$null
             }
@@ -87,7 +101,7 @@ function Connect-SqlInstance {
     #>
     if ($SqlCredential) {
         if ($SqlCredential.GetType() -ne [System.Management.Automation.PSCredential]) {
-            throw "The credential parameter was of a non-supported type! Only specify PSCredentials such as generated from Get-Credential. Input was of type $($SqlCredential.GetType().FullName)"
+            throw "The credential parameter was of a non-supported type. Only specify PSCredentials such as generated from Get-Credential. Input was of type $($SqlCredential.GetType().FullName)"
         }
     }
     #endregion Ensure Credential integrity
@@ -105,8 +119,7 @@ function Connect-SqlInstance {
         if ($ConvertedSqlInstance.Type -like "SqlConnection") {
             [DbaInstanceParameter]$ConvertedSqlInstance = New-Object Microsoft.SqlServer.Management.Smo.Server($ConvertedSqlInstance.InputObject)
         }
-    }
-    else {
+    } else {
         [DbaInstanceParameter]$ConvertedSqlInstance = [DbaInstanceParameter]($SqlInstance | Select-Object -First 1)
 
         if ($SqlInstance.Count -gt 1) {
@@ -118,14 +131,29 @@ function Connect-SqlInstance {
     #region Input Object was a server object
     if ($ConvertedSqlInstance.InputObject.GetType() -eq [Microsoft.SqlServer.Management.Smo.Server]) {
         $server = $ConvertedSqlInstance.InputObject
+        $authtypeSMO = $SqlCredential.UserName -like '*\*'
         if ($server.ConnectionContext.IsOpen -eq $false) {
             if ($NonPooled) {
+                # When the Connect method is called, the connection is not automatically released.
+                # The Disconnect method must be called explicitly to release the connection to the connection pool.
+                # https://docs.microsoft.com/en-us/sql/relational-databases/server-management-objects-smo/create-program/disconnecting-from-an-instance-of-sql-server
                 $server.ConnectionContext.Connect()
-            }
-            else {
+            } elseif ($authtypeSMO -eq "Windows Authentication with Credential") {
+                # Make it connect in a natural way, hard to explain.
+                # See https://docs.microsoft.com/en-us/sql/relational-databases/server-management-objects-smo/create-program/connecting-to-an-instance-of-sql-server
+                $null = $server.Information.Version
+
+                # Sometimes, however, the above may not connect as promised. Force it.
+                # See https://github.com/sqlcollaborative/dbatools/pull/4426
+                if ($server.ConnectionContext.IsOpen -eq $false) {
+                    $server.ConnectionContext.Connect()
+                }
+            } else {
+                # SqlConnectionObject.Open() enables connection pooling does not support
+                # alternative Windows Credentials and passes default credentials
+                # See https://github.com/sqlcollaborative/dbatools/pull/3809
                 $server.ConnectionContext.SqlConnectionObject.Open()
             }
-
         }
 
         # Register the connected instance, so that the TEPP updater knows it's been connected to and starts building the cache
@@ -143,24 +171,20 @@ function Connect-SqlInstance {
                 Invoke-TEPPCacheUpdate -ScriptBlock $scriptBlock
             }
         }
+
+        # Make ComputerName easily available in the server object
+        if (-not $server.ComputerName) {
+            $parsedcomputername = $server.NetName
+            if (-not $parsedcomputername) {
+                $parsedcomputername = ([dbainstance]$SqlInstance).ComputerName
+            }
+            Add-Member -InputObject $server -NotePropertyName ComputerName -NotePropertyValue $parsedcomputername -Force
+        }
         return $server
     }
     #endregion Input Object was a server object
 
     #region Input Object was anything else
-    # This seems a little complex but is required because some connections do TCP,SqlInstance
-    $loadedSmoVersion = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.FullName -like "Microsoft.SqlServer.SMO,*" }
-
-    if ($loadedSmoVersion) {
-        $loadedSmoVersion = $loadedSmoVersion | ForEach-Object {
-            if ($_.Location -match "__") {
-                ((Split-Path (Split-Path $_.Location) -Leaf) -split "__")[0]
-            }
-            else {
-                ((Get-ChildItem -Path $_.Location).VersionInfo.ProductVersion)
-            }
-        }
-    }
 
     $server = New-Object Microsoft.SqlServer.Management.Smo.Server $ConvertedSqlInstance.FullSmoName
     $server.ConnectionContext.ApplicationName = "dbatools PowerShell module - dbatools.io"
@@ -169,38 +193,56 @@ function Connect-SqlInstance {
     try {
         $server.ConnectionContext.ConnectTimeout = [Sqlcollaborative.Dbatools.Connection.ConnectionHost]::SqlConnectionTimeout
 
-        if ($null -ne $SqlCredential.Username) {
-            $username = ($SqlCredential.Username).TrimStart("\")
+        if ($null -ne $SqlCredential.UserName) {
+            $username = ($SqlCredential.UserName).TrimStart("\")
 
             if ($username -like "*\*") {
-                $username = $username.Split("\")[1]
+                $domain, $login = $username.Split("\")
                 $authtype = "Windows Authentication with Credential"
+                if ($domain) {
+                    $formatteduser = "$login@$domain"
+                } else {
+                    $formatteduser = $username.Split("\")[1]
+                }
                 $server.ConnectionContext.LoginSecure = $true
                 $server.ConnectionContext.ConnectAsUser = $true
-                $server.ConnectionContext.ConnectAsUserName = $username
+                $server.ConnectionContext.ConnectAsUserName = $formatteduser
                 $server.ConnectionContext.ConnectAsUserPassword = ($SqlCredential).GetNetworkCredential().Password
-            }
-            else {
+            } else {
                 $authtype = "SQL Authentication"
                 $server.ConnectionContext.LoginSecure = $false
                 $server.ConnectionContext.set_Login($username)
                 $server.ConnectionContext.set_SecurePassword($SqlCredential.Password)
             }
         }
-    }
-    catch { }
+    } catch { }
 
     try {
         if ($NonPooled) {
+            # When the Connect method is called, the connection is not automatically released.
+            # The Disconnect method must be called explicitly to release the connection to the connection pool.
+            # https://docs.microsoft.com/en-us/sql/relational-databases/server-management-objects-smo/create-program/disconnecting-from-an-instance-of-sql-server
             $server.ConnectionContext.Connect()
-        }
-        else {
+        } elseif ($authtype -eq "Windows Authentication with Credential") {
+            # Make it connect in a natural way, hard to explain.
+            # See https://docs.microsoft.com/en-us/sql/relational-databases/server-management-objects-smo/create-program/connecting-to-an-instance-of-sql-server
+            $null = $server.Information.Version
+
+            # Sometimes, however, the above may not connect as promised. Force it.
+            # See https://github.com/sqlcollaborative/dbatools/pull/4426
+            if ($server.ConnectionContext.IsOpen -eq $false) {
+                $server.ConnectionContext.Connect()
+            }
+        } else {
+            # SqlConnectionObject.Open() enables connection pooling does not support
+            # alternative Windows Credentials and passes default credentials
+            # See https://github.com/sqlcollaborative/dbatools/pull/3809
             $server.ConnectionContext.SqlConnectionObject.Open()
         }
-    }
-    catch {
+    } catch {
         $message = $_.Exception.InnerException.InnerException
         if ($message) {
+            # This is messy but it works to provide users with straightforward & detailed errors
             $message = $message.ToString()
             $message = ($message -Split '-->')[0]
             $message = ($message -Split 'at System.Data.SqlClient')[0]
@@ -211,8 +253,7 @@ function Connect-SqlInstance {
             }
 
             throw "Can't connect to $ConvertedSqlInstance`: $message "
-        }
-        else {
+        } else {
             throw $_
         }
     }
@@ -224,7 +265,7 @@ function Connect-SqlInstance {
     }
 
     if ($AzureUnsupported -and $server.DatabaseEngineType -eq "SqlAzureDatabase") {
-        throw "SQL Azure DB not supported :("
+        throw "Azure SQL Database not supported"
     }
 
     if (-not $RegularUser) {
@@ -234,56 +275,51 @@ function Connect-SqlInstance {
     }
     #'PrimaryFilePath' seems the culprit for slow SMO on databases
     $Fields2000_Db = 'Collation', 'CompatibilityLevel', 'CreateDate', 'ID', 'IsAccessible', 'IsFullTextEnabled', 'IsSystemObject', 'IsUpdateable', 'LastBackupDate', 'LastDifferentialBackupDate', 'LastLogBackupDate', 'Name', 'Owner', 'ReadOnly', 'RecoveryModel', 'ReplicationOptions', 'Status', 'Version'
-    $Fields200x_Db = $Fields2000_Db + @('BrokerEnabled', 'IsMirroringEnabled', 'Trustworthy')
+    $Fields200x_Db = $Fields2000_Db + @('BrokerEnabled', 'DatabaseSnapshotBaseName', 'IsMirroringEnabled', 'Trustworthy')
     $Fields201x_Db = $Fields200x_Db + @('ActiveConnections', 'AvailabilityDatabaseSynchronizationState', 'AvailabilityGroupName', 'ContainmentType', 'EncryptionEnabled')
 
-    $Fields2000_Login = 'CreateDate' , 'DateLastModified' , 'DefaultDatabase' , 'DenyWindowsLogin' , 'IsSystemObject' , 'Language' , 'LanguageAlias' , 'LoginType' , 'Name' , 'Sid' , 'WindowsLoginAccessType'
+    $Fields2000_Login = 'CreateDate', 'DateLastModified', 'DefaultDatabase', 'DenyWindowsLogin', 'IsSystemObject', 'Language', 'LanguageAlias', 'LoginType', 'Name', 'Sid', 'WindowsLoginAccessType'
     $Fields200x_Login = $Fields2000_Login + @('AsymmetricKey', 'Certificate', 'Credential', 'ID', 'IsDisabled', 'IsLocked', 'IsPasswordExpired', 'MustChangePassword', 'PasswordExpirationEnabled', 'PasswordPolicyEnforced')
     $Fields201x_Login = $Fields200x_Login + @('PasswordHashAlgorithm')
 
-    if ($loadedSmoVersion -ge 11) {
-        try {
-            if ($Server.ServerType -ne 'SqlAzureDatabase') {
-                $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.Trigger], 'IsSystemObject')
-                $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.Schema], 'IsSystemObject')
-                $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.SqlAssembly], 'IsSystemObject')
-                $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.Table], 'IsSystemObject')
-                $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.View], 'IsSystemObject')
-                $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.StoredProcedure], 'IsSystemObject')
-                $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.UserDefinedFunction], 'IsSystemObject')
+    try {
+        if ($Server.ServerType -ne 'SqlAzureDatabase') {
+            $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.Trigger], 'IsSystemObject')
+            $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.Schema], 'IsSystemObject')
+            $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.SqlAssembly], 'IsSystemObject')
+            $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.Table], 'IsSystemObject')
+            $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.View], 'IsSystemObject')
+            $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.StoredProcedure], 'IsSystemObject')
+            $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.UserDefinedFunction], 'IsSystemObject')
 
-                if ($server.VersionMajor -eq 8) {
-                    # 2000
-                    $initFieldsDb = New-Object System.Collections.Specialized.StringCollection
-                    [void]$initFieldsDb.AddRange($Fields2000_Db)
-                    $initFieldsLogin = New-Object System.Collections.Specialized.StringCollection
-                    [void]$initFieldsLogin.AddRange($Fields2000_Login)
-                    $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.Database], $initFieldsDb)
-                    $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.Login], $initFieldsLogin)
-                }
-                elseif ($server.VersionMajor -eq 9 -or $server.VersionMajor -eq 10) {
-                    # 2005 and 2008
-                    $initFieldsDb = New-Object System.Collections.Specialized.StringCollection
-                    [void]$initFieldsDb.AddRange($Fields200x_Db)
-                    $initFieldsLogin = New-Object System.Collections.Specialized.StringCollection
-                    [void]$initFieldsLogin.AddRange($Fields200x_Login)
-                    $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.Database], $initFieldsDb)
-                    $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.Login], $initFieldsLogin)
-                }
-                else {
-                    # 2012 and above
-                    $initFieldsDb = New-Object System.Collections.Specialized.StringCollection
-                    [void]$initFieldsDb.AddRange($Fields201x_Db)
-                    $initFieldsLogin = New-Object System.Collections.Specialized.StringCollection
-                    [void]$initFieldsLogin.AddRange($Fields201x_Login)
-                    $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.Database], $initFieldsDb)
-                    $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.Login], $initFieldsLogin)
-                }
+            if ($server.VersionMajor -eq 8) {
+                # 2000
+                $initFieldsDb = New-Object System.Collections.Specialized.StringCollection
+                [void]$initFieldsDb.AddRange($Fields2000_Db)
+                $initFieldsLogin = New-Object System.Collections.Specialized.StringCollection
+                [void]$initFieldsLogin.AddRange($Fields2000_Login)
+                $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.Database], $initFieldsDb)
+                $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.Login], $initFieldsLogin)
+            } elseif ($server.VersionMajor -eq 9 -or $server.VersionMajor -eq 10) {
+                # 2005 and 2008
+                $initFieldsDb = New-Object System.Collections.Specialized.StringCollection
+                [void]$initFieldsDb.AddRange($Fields200x_Db)
+                $initFieldsLogin = New-Object System.Collections.Specialized.StringCollection
+                [void]$initFieldsLogin.AddRange($Fields200x_Login)
+                $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.Database], $initFieldsDb)
+                $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.Login], $initFieldsLogin)
+            } else {
+                # 2012 and above
+                $initFieldsDb = New-Object System.Collections.Specialized.StringCollection
+                [void]$initFieldsDb.AddRange($Fields201x_Db)
+                $initFieldsLogin = New-Object System.Collections.Specialized.StringCollection
+                [void]$initFieldsLogin.AddRange($Fields201x_Login)
+                $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.Database], $initFieldsDb)
+                $server.SetDefaultInitFields([Microsoft.SqlServer.Management.Smo.Login], $initFieldsLogin)
             }
         }
-        catch {
-            # perhaps a DLL issue, continue going
-        }
+    } catch {
+        # perhaps a DLL issue, continue going
     }
 
     # Register the connected instance, so that the TEPP updater knows it's been connected to and starts building the cache
@@ -302,6 +338,13 @@ function Connect-SqlInstance {
         }
     }
 
+    if (-not $server.ComputerName) {
+        $parsedcomputername = $server.NetName
+        if (-not $parsedcomputername) {
+            $parsedcomputername = ([dbainstance]$SqlInstance).ComputerName
+        }
+        Add-Member -InputObject $server -NotePropertyName ComputerName -NotePropertyValue $parsedcomputername -Force
+    }
     return $server
     #endregion Input Object was anything else
 }

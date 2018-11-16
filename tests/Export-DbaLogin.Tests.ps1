@@ -1,6 +1,21 @@
-﻿$CommandName = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
-Write-Host -Object "Running $PSCommandpath" -ForegroundColor Cyan
+$CommandName = $MyInvocation.MyCommand.Name.Replace(".Tests.ps1", "")
+Write-Host -Object "Running $PSCommandPath" -ForegroundColor Cyan
 . "$PSScriptRoot\constants.ps1"
+
+Describe "$CommandName Unit Tests" -Tag 'UnitTests' {
+    Context "Validate parameters" {
+        $paramCount = 13
+        $defaultParamCount = 13
+        [object[]]$params = (Get-ChildItem function:\Export-DbaLogin).Parameters.Keys
+        $knownParameters = 'SqlInstance', 'SqlCredential', 'Login', 'ExcludeLogin', 'Database', 'Path', 'NoClobber', 'Append', 'NoDatabases', 'NoJobs', 'EnableException', 'ExcludeGoBatchSeparator', 'DestinationVersion'
+        It "Should contain our specific parameters" {
+            ( (Compare-Object -ReferenceObject $knownParameters -DifferenceObject $params -IncludeEqual | Where-Object SideIndicator -eq "==").Count ) | Should Be $paramCount
+        }
+        It "Should only contain $paramCount parameters" {
+            $params.Count - $defaultParamCount | Should Be $paramCount
+        }
+    }
+}
 
 $outputFile = "dbatoolsci_exportdbalogin.sql"
 
@@ -32,8 +47,7 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
             }
             $null = $server.Query("GRANT SELECT ON sys.databases TO [$login2] WITH GRANT OPTION")
             $server.Databases[$dbname2].ExecuteNonQuery("CREATE USER [$user2] FOR LOGIN [$login2]")
-        }
-        catch { } # No idea why appveyor can't handle this
+        } catch { } # No idea why appveyor can't handle this
     }
     AfterAll {
         Remove-DbaDatabase -SqlInstance $script:instance1 -Database $dbname1 -Confirm:$false
@@ -46,18 +60,18 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
     }
 
     It "Filters to specific databases" {
-        $output = Export-DbaLogin -SqlInstance $script:instance1 -Database $dbname1 -EnableException
+        $output = Export-DbaLogin -SqlInstance $script:instance1 -Database $dbname1 -WarningAction SilentlyContinue
 
         ([regex]::matches($output, 'USE \[.*?\]').Value | Select-Object -Unique).Count | Should Be 1
     }
 
     It "Doesn't include database details when using NoDatabase" {
-        $output = Export-DbaLogin -SqlInstance $script:instance1 -NoDatabase -EnableException
+        $output = Export-DbaLogin -SqlInstance $script:instance1 -NoDatabases -WarningAction SilentlyContinue
 
         ([regex]::matches($output, 'USE \[.*?\]')).Count | Should Be 0
     }
 
-    $output = Export-DbaLogin -SqlInstance $script:instance1 -EnableException
+    $output = Export-DbaLogin -SqlInstance $script:instance1 -WarningAction SilentlyContinue
     It "Doesn't filter specific databases" {
         ([regex]::matches($output, 'USE \[.*?\]').Value | Select-Object -Unique).Count | Should BeGreaterThan 1
     }
@@ -79,7 +93,7 @@ Describe "$commandname Integration Tests" -Tags "IntegrationTests" {
     }
 
     It "Exports to the specified file" {
-        Export-DbaLogin -SqlInstance $script:instance1 -FilePath $outputFile -EnableException
+        Export-DbaLogin -SqlInstance $script:instance1 -Path $outputFile -WarningAction SilentlyContinue
 
         Test-Path -Path $outputFile | Should Be $true
     }

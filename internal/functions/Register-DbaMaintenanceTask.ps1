@@ -39,23 +39,23 @@ function Register-DbaMaintenanceTask {
 
         .EXAMPLE
             PS C:\> Register-DbaMaintenanceTask -Name 'value1' -ScriptBlock $ScriptBlock -Once
-    #>
+       #>
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory)]
         [string]
         $Name,
 
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory)]
         [System.Management.Automation.ScriptBlock]
         $ScriptBlock,
 
-        [Parameter(Mandatory = $true, ParameterSetName = "Once")]
+        [Parameter(Mandatory, ParameterSetName = "Once")]
         [switch]
         $Once,
 
-        [Parameter(Mandatory = $true, ParameterSetName = "Repeating")]
+        [Parameter(Mandatory, ParameterSetName = "Repeating")]
         [System.TimeSpan]
         $Interval,
 
@@ -93,8 +93,7 @@ function Register-DbaMaintenanceTask {
             if ($Interval.Ticks -le 0) {
                 Stop-Function -Message "Failed to register task: $Name - Interval cannot be 0 or less" -Category InvalidArgument
                 return
-            }
-            else { $task.Interval = $Interval }
+            } else { $task.Interval = $Interval }
         }
         if (Test-Bound -ParameterName Delay) { $task.Delay = $Delay }
         $task.Priority = $Priority
